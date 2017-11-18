@@ -173,31 +173,32 @@ void handle_key(byte num, byte times) {
       menu = 8;
     }
   }
-  if (num == KEY_PLUS && menu == 0) { // on-time +
-    if (times == 0) m1++;
-    if (times >= 1 && times <= 6) m1 += 10;
-    if (times >= 7) h1++;
+  if (num == KEY_PLUS && (menu == 0 || menu == 1)) { // on-time +, off-time +
+    if (times == 0) m_++;
+    if (times >= 1 && times <= 6) m_ += 10;
+    if (times >= 7) h_++;
   }
-  if (num == KEY_MINUS && menu == 0) { // on-time -
-    if (times == 0) m1--;
-    if (times >= 1 && times <= 6) m1 -= 10;
-    if (times >= 7) h1--;
+  if (num == KEY_MINUS && (menu == 0 || menu == 1)) { // on-time -, off-time -
+    if (times == 0) m_--;
+    if (times >= 1 && times <= 6) m_ -= 10;
+    if (times >= 7) h_--;
   }
-  if (num == KEY_PLUS && menu == 1) { // off-time +
-    if (times == 0) m0++;
-    if (times >= 1 && times <= 6) m0 += 10;
-    if (times >= 7) h0++;
+  if (num == KEY_APPLY && menu == 0) { // on-time apply
+    h1 = h_;
+    m1 = m_;
   }
-  if (num == KEY_MINUS && menu == 1) { // off-time -
-    if (times == 0) m0--;
-    if (times >= 1 && times <= 6) m0 -= 10;
-    if (times >= 7) h0--;
+  if (num == KEY_APPLY && menu == 1) { // off-time apply
+    h0 = h_;
+    m0 = m_;
   }
   if (num == KEY_PLUS && menu == 2) { // atx mode +
     atx_mode_selector = (atx_mode_selector + 1) % 3;
   }
   if (num == KEY_MINUS && menu == 2) { // atx mode -
     atx_mode_selector = (atx_mode_selector + 3 - 1) % 3;
+  }
+  if (num == KEY_APPLY && menu == 2) { // atx mode apply
+    atx_mode = atx_mode_selector;
   }
 }
 
