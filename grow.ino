@@ -13,7 +13,7 @@ int h1, m1; // on
 int h0, m0; // off
 int h_, m_; // temporary
 
-TM1638 ctrl(4, 3, 2);
+TM1638 ctrl(A1, A2, A3);
 
 byte keymask[] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 byte handled[] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -116,6 +116,42 @@ void normalize_time() {
   if (hh >= 24) {
     hh = hh % 24;
   }
+
+  // TMP
+  // decrease time
+  while (m_ < 0) {
+    m_ += 60;
+    h_--;
+  }
+  while (h_ < 0) {
+    h_ += 24;
+  }
+
+  // increase time
+  if (m_ >= 60) {
+    h_ += m_ / 60;
+    m_ = m_ % 60;
+  }
+  if (h_ >= 24) {
+    h_ = h_ % 24;
+  }
+}
+
+void check_time() {
+  int hhmm = hh * 100 + mm;
+  int h0m0 = h0 * 100 + m0;
+  int h1m1 = h1 * 100 + m1;
+
+  if (h0m0 < h1m1) {
+    // on < h0m0 <= off < h1m1 <= on
+    atx_on = (hhmm < h0m0 || hhmm >= h1m1);
+  }
+  
+  if (h1m1 < h0m0) {
+    // off < h1m1 <= on < h0m0 <= off
+    atx_on = (hhmm >= h1m1 && hhmm < h0m0);
+  }
+
 }
 
 void handle_keys() {
@@ -276,6 +312,7 @@ void loop() {
     show_time();
 
     // control atx
+    check_time();
     control_atx();
   }
 
