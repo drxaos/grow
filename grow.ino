@@ -21,6 +21,12 @@ unsigned long updated[] = {0, 0, 0, 0, 0, 0, 0, 0};
 unsigned long pressed[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 byte menu;
+const byte MENU_ON = 0;
+const byte MENU_OFF = 1;
+const byte MENU_ATX = 2;
+const byte MENU_SEC = 3;
+const byte MENU_HUMIDITY = 4;
+const byte MENU_NONE = 8;
 
 const byte KEY_MENU = 0;
 const byte KEY_MINUS = 1;
@@ -32,6 +38,10 @@ const byte KEY_TIME_PLUS = 7;
 const byte ATX_PIN = A0;
 byte atx_on;
 byte atx_mode, atx_mode_selector; // 0=off, 1=auto, 2=on
+int secd = 1000, secd_selector; // second duration in ms
+
+byte humidity_on;
+int humidity, humidity_read;
 
 void setup() {
   hh = 00;
@@ -44,7 +54,7 @@ void setup() {
 
   step = 0;
 
-  menu = 8;
+  menu = MENU_HUMIDITY;
 
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -84,7 +94,7 @@ void read_keys() {
 }
 
 void tick() {
-  if (time > now || now - time > 1000) {
+  if (time > now || now - time >= 1000) {
     time = millis();
     ss++;
   }
@@ -146,7 +156,7 @@ void check_time() {
     // on < h0m0 <= off < h1m1 <= on
     atx_on = (hhmm < h0m0 || hhmm >= h1m1);
   }
-  
+
   if (h1m1 < h0m0) {
     // off < h1m1 <= on < h0m0 <= off
     atx_on = (hhmm >= h1m1 && hhmm < h0m0);
@@ -194,47 +204,62 @@ void handle_key(byte num, byte times) {
   }
   if (num == KEY_MENU) { // menu
     menu = (menu + 1) % 9;
-    if (menu == 0) { // on-time
+    if (menu == MENU_ON) { // on-time
       h_ = h1;
       m_ = m1;
     }
-    if (menu == 1) { // off-time
+    if (menu == MENU_OFF) { // off-time
       h_ = h0;
       m_ = m0;
     }
-    if (menu == 2) { // atx mode
+    if (menu == MENU_ATX) { // atx mode
       atx_mode_selector = atx_mode;
     }
-    if (menu >= 3) { // skip
-      menu = 8;
+    if (menu == MENU_SEC) { // second duration
+      secd_selector = secd;
+    }
+    if (menu >= 5) { // skip
+      menu = MENU_NONE;
     }
   }
-  if (num == KEY_PLUS && (menu == 0 || menu == 1)) { // on-time +, off-time +
+  if (num == KEY_PLUS && (menu == MENU_ON || menu == MENU_OFF)) { // on-time +, off-time +
     if (times == 0) m_++;
     if (times >= 1 && times <= 6) m_ += 10;
     if (times >= 7) h_++;
   }
-  if (num == KEY_MINUS && (menu == 0 || menu == 1)) { // on-time -, off-time -
+  if (num == KEY_MINUS && (menu == MENU_ON || menu == MENU_OFF)) { // on-time -, off-time -
     if (times == 0) m_--;
     if (times >= 1 && times <= 6) m_ -= 10;
     if (times >= 7) h_--;
   }
-  if (num == KEY_APPLY && menu == 0) { // on-time apply
+  if (num == KEY_APPLY && menu == MENU_ON) { // on-time apply
     h1 = h_;
     m1 = m_;
   }
-  if (num == KEY_APPLY && menu == 1) { // off-time apply
+  if (num == KEY_APPLY && menu == MENU_OFF) { // off-time apply
     h0 = h_;
     m0 = m_;
   }
-  if (num == KEY_PLUS && menu == 2) { // atx mode +
+  if (num == KEY_PLUS && menu == MENU_ATX) { // atx mode +
     atx_mode_selector = (atx_mode_selector + 1) % 3;
   }
-  if (num == KEY_MINUS && menu == 2) { // atx mode -
+  if (num == KEY_MINUS && menu == MENU_ATX) { // atx mode -
     atx_mode_selector = (atx_mode_selector + 3 - 1) % 3;
   }
-  if (num == KEY_APPLY && menu == 2) { // atx mode apply
+  if (num == KEY_APPLY && menu == MENU_ATX) { // atx mode apply
     atx_mode = atx_mode_selector;
+  }
+  if (num == KEY_PLUS && menu == MENU_SEC) { // sec +
+    secd_selector = (secd_selector + 1) % 2000;
+  }
+  if (num == KEY_MINUS && menu == MENU_SEC) { // sec -
+    secd_selector = (secd_selector + 2000 - 1) % 2000;
+  }
+  if (num == KEY_APPLY && menu == MENU_SEC) { // sec apply
+    secd = secd_selector;
+  }
+  if (num == KEY_APPLY && menu == MENU_HUMIDITY) { // humidity on/off
+    humidity_on = humidity_on == 0 ? 1 : 0;
   }
 }
 
@@ -259,14 +284,14 @@ void show_menu() {
   for (byte i = 0; i < 8; i++) {
     ctrl.setLED(menu == i ? 1 : 0, i);
   }
-  if (menu == 0 || menu == 1) {
+  if (menu == MENU_ON || menu == MENU_OFF) {
     ctrl.setDisplayDigit(h_ / 10, 0, false);
     ctrl.setDisplayDigit(h_ % 10, 1, true);
     ctrl.setDisplayDigit(m_ / 10, 2, false);
-    ctrl.setDisplayDigit(m_ % 10, 3, (menu == 0 && h1 == h_ && m1 == m_) || (menu == 1 && h0 == h_ && m0 == m_));
+    ctrl.setDisplayDigit(m_ % 10, 3, (menu == MENU_ON && h1 == h_ && m1 == m_) || (menu == MENU_OFF && h0 == h_ && m0 == m_));
     return;
   }
-  if (menu == 2) {
+  if (menu == MENU_ATX) {
     byte applied = (atx_mode_selector == atx_mode) ? 8 : 0;
     byte buf[] = {0, 0, 0, 0};
     if (atx_mode_selector == 0) {
@@ -280,10 +305,47 @@ void show_menu() {
     }
     return;
   }
+  if (menu == MENU_SEC) {
+    ctrl.setDisplayDigit((secd / 1000) % 10, 0, false);
+    ctrl.setDisplayDigit((secd / 100) % 10, 1, false);
+    ctrl.setDisplayDigit((secd / 10) % 10, 2, false);
+    ctrl.setDisplayDigit((secd) % 10, 3, secd == secd_selector);
+    return;
+  }
+  if (menu == MENU_HUMIDITY) {
+    ctrl.setDisplayDigit((humidity / 1000) % 10, 0, false);
+    ctrl.setDisplayDigit((humidity / 100) % 10, 1, false);
+    ctrl.setDisplayDigit((humidity / 10) % 10, 2, false);
+    ctrl.setDisplayDigit((humidity) % 10, 3, humidity_on == 0 ? false : true);
+    return;
+  }
   ctrl.clearDisplayDigit(0, false);
   ctrl.clearDisplayDigit(1, false);
   ctrl.clearDisplayDigit(2, false);
   ctrl.clearDisplayDigit(3, false);
+}
+
+void read_humidity() {
+  if (humidity_on == 0) {
+    return;
+  }
+  if (step == 1 && strobe == 1) {
+    // on
+    pinMode(A5, INPUT_PULLUP);
+    humidity_read = 0;
+  }
+  if (step == 1 && strobe == 0) {
+    int a5 = analogRead(A5);
+    if (humidity_read < a5) {
+      humidity_read = a5;
+    }
+  }
+  if (step == 2 && strobe == 1) {
+    humidity = humidity_read;
+    // off
+    pinMode(A5, OUTPUT);
+    digitalWrite(A5, LOW);
+  }
 }
 
 void loop() {
@@ -302,6 +364,8 @@ void loop() {
   handle_keys();
   normalize_time();
 
+  read_humidity();
+
   if (strobe) {
     // blink
     digitalWrite(LED_BUILTIN, ss % 2);
@@ -316,9 +380,8 @@ void loop() {
     control_atx();
   }
 
-
   // sleep
-  delay(10);
+  delay(1);
 }
 
 
